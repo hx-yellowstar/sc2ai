@@ -5,9 +5,9 @@ from init_ai import start
 from multiprocessing import Pool
 
 def multi_start():
-    pool = Pool(4)
+    pool = Pool(3)
     n = 0
-    while n < 100000:
+    while n < 1000:
         n += 1
         pool.apply_async(start_sim)
     pool.close()

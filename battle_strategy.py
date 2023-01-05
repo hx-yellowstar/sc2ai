@@ -1,9 +1,6 @@
 import re
 import sc2
-import random
 from typing import Union
-from sc2.bot_ai import Unit
-from sc2.position import Point2
 from custom_logger import output_log
 from sc2.constants import UnitTypeId, UpgradeId, AbilityId
 
@@ -16,7 +13,6 @@ class BattleStrategy(sc2.BotAI):
         except Exception as e:
             output_log(e)
             first_order = ''
-        first_order = first_order.lower()
         return first_order
 
     def order_execute_num_in_scv(self, order_name):
@@ -57,65 +53,38 @@ class BattleStrategy(sc2.BotAI):
                 target_enemy = enemy
         return target_enemy
 
-    def get_army_central_point(self, side='friendly'):
-        if side == 'friendly':
-            friendly_units = self.get_friendly_battle_unit()
-            central_point = friendly_units.center
-        else:
-            enemy_units = self.get_visible_enemy_battle_unit_or_building()
-            if len(enemy_units) > 0:
-                central_point = enemy_units.center
-            else:
-                return
+    def get_regroup_point(self):
+        friendly_units = self.get_friendly_battle_unit()
+        central_point = friendly_units.center
         return central_point
 
-    def get_unit_escape_position(self, unit: Unit):
-        current_position = unit.position
-        enemy_central_point = self.get_army_central_point('enemy')
-        if not enemy_central_point:
-            return current_position
-        mdv_x = current_position.x
-        mdv_y = current_position.y
-        ecp_x = enemy_central_point.x
-        ecp_y = enemy_central_point.y
-        new_position = current_position.offset([-0.7*(ecp_x-mdv_x), -0.7*(ecp_y-mdv_y)])
-        return new_position
-
     def get_visible_enemy_battle_unit_or_building(self):
-        return (self.enemy_units+self.enemy_structures).filter(lambda u: (u.is_visible is True and (u.ground_dps > 0 or u.air_dps > 0) and u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD)))
+        return self.known_enemy_units.filter(lambda u: (u.is_visible is True and (u.ground_dps > 0 or u.air_dps > 0) and u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD)))
 
     def get_friendly_battle_unit(self):
-        return self.units.filter(lambda u: u.is_mine is True and (u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD)))
+        return self.state.units.filter(lambda u: u.is_mine is True and (u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD))).not_structure
 
     def get_enemy_worker(self):
-        return self.enemy_units.filter(lambda u: (u.is_visible is True and u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)))
+        return self.known_enemy_units.filter(lambda u: (u.is_visible is True and u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)))
 
     def get_all_enemy_visible_unit(self):
-        return self.enemy_units.filter(lambda u: (u.is_visible is True and u.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG)))
+        return self.known_enemy_units.filter(lambda u: (u.is_visible is True and u.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG)))
 
     def get_all_friendly_battle_unit(self):
-        return self.units.filter(lambda u: (u.type_id not in (UnitTypeId.SCV, UnitTypeId.MEDIVAC)))
+        return self.state.units.filter(lambda u: (u.is_mine is True and u.type_id not in (UnitTypeId.SCV, UnitTypeId.MEDIVAC))).not_structure
 
     def get_all_friendly_unit(self):
-        return self.units
+        return self.state.units.filter(lambda u: (u.is_mine is True)).not_structure
 
     def get_all_friendly_building(self):
-        return self.structures
+        return self.state.units.filter(lambda u: (u.is_mine is True)).structure
 
     def get_all_enemy_building(self):
-        return self.enemy_structures
-
-    def unit_regroup(self, unit):
-        commandcenter_position = random.choice(self.structures(UnitTypeId.COMMANDCENTER)).position
-        unit_center_position = self.get_friendly_battle_unit().center
-        target_position = Point2(((commandcenter_position.x + unit_center_position.x) / 2,
-                                  (commandcenter_position.y + unit_center_position.y) / 2))
-        self.do(unit.move(target_position))
+        return self.state.units.structure.enemy
 
     def get_current_battlefield_unit_status(self):
         all_friendly_units = self.get_all_friendly_unit()
         enemy_units = self.get_visible_enemy_battle_unit_or_building()
-        known_enemy_units = self.enemy_units
         total_ground_dps = 0
         total_air_dps = 0
         enemy_ground_dps = 0
@@ -126,9 +95,6 @@ class BattleStrategy(sc2.BotAI):
         enemy_unit_attacking = 0
         total_number = 0
         total_enemy_number = 0
-        known_enemy_number = 0
-        known_enemy_ground_dps = 0
-        known_enemy_air_dps = 0
         for friendly_unit in all_friendly_units:
             total_number += 1
             total_ground_dps += friendly_unit.ground_dps
@@ -143,19 +109,12 @@ class BattleStrategy(sc2.BotAI):
         for enemy_unit in enemy_units:
             total_enemy_number += 1
             enemy_ground_dps += enemy_unit.ground_dps
-            enemy_air_dps += enemy_unit.air_dps
+            enemy_air_dps += enemy_units.air_dps
             if self.unit_attacking(enemy_unit):
                 enemy_unit_attacking += 1
-        for enemy_unit in known_enemy_units:
-            known_enemy_number += 1
-            known_enemy_ground_dps += enemy_unit.ground_dps
-            known_enemy_air_dps += enemy_unit.air_dps
-        return [total_number, total_ground_dps, total_air_dps, total_enemy_number, enemy_ground_dps, enemy_air_dps,
-                unit_idle, unit_moving, unit_attacking, enemy_unit_attacking, known_enemy_number, known_enemy_ground_dps, known_enemy_air_dps]
+        return [total_number, total_ground_dps, total_air_dps, total_enemy_number, enemy_ground_dps, enemy_air_dps, unit_idle, unit_moving, unit_attacking, enemy_unit_attacking]
 
     def get_unit_around_status(self, current_unit):
-        unit_self_health = current_unit.health
-        unit_self_movement_speed = current_unit.movement_speed
         all_friendly_units = self.get_all_friendly_unit()
         enemy_units = self.get_visible_enemy_battle_unit_or_building()
         total_ground_dps = 0
@@ -189,7 +148,7 @@ class BattleStrategy(sc2.BotAI):
             enemy_air_dps += enemy_unit.air_dps
             if self.unit_attacking(enemy_unit):
                 enemy_unit_attacking += 1
-        return [unit_self_health, unit_self_movement_speed, total_number, total_ground_dps, total_air_dps, total_enemy_number, enemy_ground_dps, enemy_air_dps, unit_idle, unit_moving, unit_attacking, enemy_unit_attacking]
+        return [total_number, total_ground_dps, total_air_dps, total_enemy_number, enemy_ground_dps, enemy_air_dps, unit_idle, unit_moving, unit_attacking, enemy_unit_attacking]
 
 
 if __name__ == '__main__':
