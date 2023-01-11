@@ -1,12 +1,17 @@
 import re
 import sc2
+from sc2.main import BotAI
 from typing import Union
 from custom_logger import output_log
 from sc2.constants import UnitTypeId, UpgradeId, AbilityId
+from sc2.unit import Unit
 
 
-class BattleStrategy(sc2.BotAI):
-    def get_unit_first_order(self, unit):
+class BattleStrategy:
+    def __init__(self, bot_inst: BotAI):
+        self.bot_inst: BotAI = bot_inst
+
+    def get_unit_first_order(self, unit: Unit):
         order_queue = unit.orders
         try:
             first_order = re.search('\(name=(.*?)\)', str(order_queue[0].ability)).group(1)
@@ -18,14 +23,14 @@ class BattleStrategy(sc2.BotAI):
     def order_execute_num_in_scv(self, order_name):
         order_name = order_name.lower()
         execute_num = 0
-        for scv_unit in self.units(UnitTypeId.SCV).ready:
+        for scv_unit in self.bot_inst.units(UnitTypeId.SCV).ready:
             first_order = self.get_unit_first_order(scv_unit)
             first_order = first_order.lower()
             if first_order == order_name:
                 execute_num += 1
         return execute_num
 
-    def unit_attacking(self, unit: UnitTypeId):
+    def unit_attacking(self, unit: Unit):
         first_order = self.get_unit_first_order(unit)
         first_order = first_order.lower()
         if first_order == 'attack':
@@ -59,28 +64,28 @@ class BattleStrategy(sc2.BotAI):
         return central_point
 
     def get_visible_enemy_battle_unit_or_building(self):
-        return self.known_enemy_units.filter(lambda u: (u.is_visible is True and (u.ground_dps > 0 or u.air_dps > 0) and u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD)))
+        return self.bot_inst.enemy_units.filter(lambda u: (u.is_visible is True and (u.ground_dps > 0 or u.air_dps > 0) and u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD)))
 
     def get_friendly_battle_unit(self):
-        return self.state.units.filter(lambda u: u.is_mine is True and (u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD))).not_structure
+        return self.bot_inst.units.filter(lambda u: u.is_mine is True and (u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD))).not_structure
 
     def get_enemy_worker(self):
-        return self.known_enemy_units.filter(lambda u: (u.is_visible is True and u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)))
+        return self.bot_inst.enemy_units.filter(lambda u: (u.is_visible is True and u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)))
 
     def get_all_enemy_visible_unit(self):
-        return self.known_enemy_units.filter(lambda u: (u.is_visible is True and u.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG)))
+        return self.bot_inst.enemy_units.filter(lambda u: (u.is_visible is True and u.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG)))
 
     def get_all_friendly_battle_unit(self):
-        return self.state.units.filter(lambda u: (u.is_mine is True and u.type_id not in (UnitTypeId.SCV, UnitTypeId.MEDIVAC))).not_structure
+        return self.bot_inst.units.filter(lambda u: (u.is_mine is True and u.type_id not in (UnitTypeId.SCV, UnitTypeId.MEDIVAC))).not_structure
 
     def get_all_friendly_unit(self):
-        return self.state.units.filter(lambda u: (u.is_mine is True)).not_structure
+        return self.bot_inst.units.filter(lambda u: (u.is_mine is True)).not_structure
 
     def get_all_friendly_building(self):
-        return self.state.units.filter(lambda u: (u.is_mine is True)).structure
+        return self.bot_inst.units.filter(lambda u: (u.is_mine is True)).structure
 
     def get_all_enemy_building(self):
-        return self.state.units.structure.enemy
+        return self.bot_inst.units.structure.enemy
 
     def get_current_battlefield_unit_status(self):
         all_friendly_units = self.get_all_friendly_unit()
@@ -109,7 +114,7 @@ class BattleStrategy(sc2.BotAI):
         for enemy_unit in enemy_units:
             total_enemy_number += 1
             enemy_ground_dps += enemy_unit.ground_dps
-            enemy_air_dps += enemy_units.air_dps
+            enemy_air_dps += enemy_unit.air_dps
             if self.unit_attacking(enemy_unit):
                 enemy_unit_attacking += 1
         return [total_number, total_ground_dps, total_air_dps, total_enemy_number, enemy_ground_dps, enemy_air_dps, unit_idle, unit_moving, unit_attacking, enemy_unit_attacking]
@@ -150,7 +155,3 @@ class BattleStrategy(sc2.BotAI):
                 enemy_unit_attacking += 1
         return [total_number, total_ground_dps, total_air_dps, total_enemy_number, enemy_ground_dps, enemy_air_dps, unit_idle, unit_moving, unit_attacking, enemy_unit_attacking]
 
-
-if __name__ == '__main__':
-    for each_dir in dir(sc2.BotAI.game_info):
-        print(each_dir)
