@@ -100,13 +100,35 @@ class SimpleAI(BotAI):
 
     async def eco_development(self):
         # 发展经济，制造scv，变形星轨或行星要塞，砸矿骡
-        for commandcenter in self.structures.of_type([UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS]):
+        for commandcenter in self.structures.of_type(UnitTypeId.COMMANDCENTER):
+            # 普通指挥中心建造scv
             target_workers_num = len({mineral.tag for mineral in self.mineral_field if mineral.distance_to(commandcenter) <= 8}) * 2 + 6
             if self.status_check.get_building_or_unit_num(UnitTypeId.SCV) < target_workers_num:
-                if self.can_afford(UnitTypeId.SCV):
-                    if commandcenter.is_idle:
-                        commandcenter.train(UnitTypeId.SCV)
-                        time.sleep(0.1)
+                if commandcenter.is_idle:
+                    if self.status_check.get_building_or_unit_num(UnitTypeId.BARRACKS):
+                        if self.status_check.get_building_or_unit_num(UnitTypeId.ORBITALCOMMAND) < 3:
+                            if self.can_afford(UnitTypeId.ORBITALCOMMAND):
+                                if not commandcenter.is_using_ability(AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND):
+                                    commandcenter(AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND)
+                        else:
+                            if self.can_afford(UnitTypeId.PLANETARYFORTRESS):
+                                if not commandcenter.is_using_ability(AbilityId.UPGRADETOPLANETARYFORTRESS_PLANETARYFORTRESS):
+                                    commandcenter(AbilityId.UPGRADETOPLANETARYFORTRESS_PLANETARYFORTRESS)
+                    else:
+                        if self.can_afford(UnitTypeId.SCV):
+                            commandcenter.train(UnitTypeId.SCV)
+                            time.sleep(0.1)
+
+        for commandcenter in self.structures.of_type([UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS]):
+            # 星轨和行星要塞建造scv
+            if self.can_afford(UnitTypeId.SCV):
+                if commandcenter.is_idle:
+                    commandcenter.train(UnitTypeId.SCV)
+                    time.sleep(0.1)
+
+        for commandcenter in self.structures.of_type(UnitTypeId.ORBITALCOMMAND):
+            if commandcenter.energy > 50:
+                pass
 
     async def figuring_supply(self):
         for supply_depot in self.units(UnitTypeId.SUPPLYDEPOT).ready:
