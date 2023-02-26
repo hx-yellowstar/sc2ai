@@ -1,21 +1,20 @@
-import re
 import cv2
 import sys
 import time
 import random
-import traceback
 import numpy as np
 
 from sc2 import maps
 from sc2.main import run_game, BotAI
 from sc2.data import Race, Difficulty, Result
-from sc2.player import Bot, Computer, Human
-from sc2.constants import UnitTypeId, UpgradeId, AbilityId, BuffId
+from sc2.player import Bot, Computer
+from sc2.constants import UnitTypeId, UpgradeId, AbilityId
 
 from sc2ai_lib import *
-from status_check import StatusCheck
-from battle_strategy import BattleStrategy
-from development import DevelopMent
+from sub_strategies.status_check import StatusCheck
+from sub_strategies.battle_strategy import BattleStrategy
+from sub_strategies.development import DevelopMent
+from sub_strategies.scout import ScoutStrategies
 
 from custom_logger import output_log
 
@@ -26,6 +25,7 @@ class SimpleAI(BotAI):
         self.battle_strategy = BattleStrategy(self)
         self.develop_strategy = DevelopMent(self)
         self.status_check = StatusCheck(self)
+        self.scout_st = ScoutStrategies(self)
         self.first_supplydepot_position = None
         self.current_second = 0         # 目前游戏进行的秒数
         self.step_count = 0
@@ -68,7 +68,7 @@ class SimpleAI(BotAI):
         await self.record_speicfic_unit_orders()
         await self.manufacture_battle_unit()
         await self.do_upgrade()
-        await self.move_and_attack()
+        # await self.move_and_attack()
         await self.scout()
         await self.drawing()
         await self.show_unit_status()
@@ -96,7 +96,7 @@ class SimpleAI(BotAI):
         cv2.waitKey(1)
 
     async def development(self):
-        await self.develop_strategy.decide_which_building_to_build()
+        await self.develop_strategy.build_for_normal_tactics()
 
     async def eco_development(self):
         # 发展经济，制造scv，变形星轨或行星要塞，砸矿骡
@@ -146,7 +146,7 @@ class SimpleAI(BotAI):
                         await self.build(UnitTypeId.SUPPLYDEPOT, near=self.first_supplydepot_position, max_distance=1)
                     else:
                         output_log('still not found depot position, using a default')
-                        await self.build(UnitTypeId.SUPPLYDEPOT, self.units(UnitTypeId.COMMANDCENTER).ready.first, max_distance=20)
+                        await self.build(UnitTypeId.SUPPLYDEPOT, self.structures(UnitTypeId.COMMANDCENTER).ready.first, max_distance=20)
                 else:
                     return
 
@@ -203,16 +203,21 @@ class SimpleAI(BotAI):
                 for starport in self.units(UnitTypeId.STARPORT).ready:
                     if self.can_afford(UnitTypeId.MEDIVAC) and starport.is_idle:
                         starport.train(UnitTypeId.MEDIVAC)
+        if self.status_check.check_if_valid_building_exists(UnitTypeId.FACTORY):
+            for factory in self.structures.of_type(UnitTypeId.FACTORY):
+                factory.train(UnitTypeId.HELLION)
 
     async def scout(self):
-        if not self.enemy_structures and not self.enemy_units:
-            if self.status_check.check_if_valid_building_exists(UnitTypeId.BARRACKS):
-                if self.battle_strategy.order_execute_num_in_scv('move') < 1:
-                    scout_scv = self.units(UnitTypeId.SCV).ready.first
-                    for position in self.enemy_start_locations:
-                        output_log('scout scv move to {0}'.format(position))
-                        scout_scv.move(position)
-                        time.sleep(0.1)
+        # if not self.enemy_structures and not self.enemy_units:
+        #     if self.status_check.check_if_valid_building_exists(UnitTypeId.BARRACKS):
+        #         if self.battle_strategy.order_execute_num_in_scv('move') < 1:
+        #             scout_scv = self.units(UnitTypeId.SCV).ready.first
+        #             for position in self.enemy_start_locations:
+        #                 output_log('scout scv move to {0}'.format(position))
+        #                 scout_scv.move(position)
+        #                 time.sleep(0.1)
+        self.scout_st.choose_scout_unit()
+        self.scout_st.do_scout()
 
     async def do_upgrade(self):
         for addon in self.units(UnitTypeId.BARRACKSTECHLAB).ready:
@@ -295,7 +300,7 @@ class SimpleAI(BotAI):
 
 
 def start():
-    game_result = run_game(maps.get("EphemeronLE"), [Bot(Race.Terran, SimpleAI()), Computer(Race.Random, Difficulty.Easy)], realtime=True)
+    game_result = run_game(maps.get("BerlingradAIE"), [Bot(Race.Terran, SimpleAI()), Computer(Race.Random, Difficulty.Easy)], realtime=True)
     print('game_result: {0}'.format(game_result))
     return game_result
 

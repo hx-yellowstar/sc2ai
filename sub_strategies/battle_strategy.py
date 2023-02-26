@@ -9,7 +9,7 @@ from sc2.unit import Unit
 
 class BattleStrategy:
     def __init__(self, bot_inst: BotAI):
-        self.bot_inst: BotAI = bot_inst
+        self.ai: BotAI = bot_inst
 
     def get_unit_first_order(self, unit: Unit):
         order_queue = unit.orders
@@ -23,7 +23,7 @@ class BattleStrategy:
     def order_execute_num_in_scv(self, order_name):
         order_name = order_name.lower()
         execute_num = 0
-        for scv_unit in self.bot_inst.units(UnitTypeId.SCV).ready:
+        for scv_unit in self.ai.units(UnitTypeId.SCV).ready:
             first_order = self.get_unit_first_order(scv_unit)
             first_order = first_order.lower()
             if first_order == order_name:
@@ -64,28 +64,28 @@ class BattleStrategy:
         return central_point
 
     def get_visible_enemy_battle_unit_or_building(self):
-        return self.bot_inst.enemy_units.filter(lambda u: (u.is_visible is True and (u.ground_dps > 0 or u.air_dps > 0) and u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD)))
+        return self.ai.enemy_units.filter(lambda u: (u.is_visible is True and (u.ground_dps > 0 or u.air_dps > 0) and u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD)))
 
     def get_friendly_battle_unit(self):
-        return self.bot_inst.units.filter(lambda u: u.is_mine is True and (u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD))).not_structure
+        return self.ai.units.filter(lambda u: u.is_mine is True and (u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.OVERLORD))).not_structure
 
     def get_enemy_worker(self):
-        return self.bot_inst.enemy_units.filter(lambda u: (u.is_visible is True and u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)))
+        return self.ai.enemy_units.filter(lambda u: (u.is_visible is True and u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)))
 
     def get_all_enemy_visible_unit(self):
-        return self.bot_inst.enemy_units.filter(lambda u: (u.is_visible is True and u.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG)))
+        return self.ai.enemy_units.filter(lambda u: (u.is_visible is True and u.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG)))
 
     def get_all_friendly_battle_unit(self):
-        return self.bot_inst.units.filter(lambda u: (u.is_mine is True and u.type_id not in (UnitTypeId.SCV, UnitTypeId.MEDIVAC))).not_structure
+        return self.ai.units.filter(lambda u: (u.is_mine is True and u.type_id not in (UnitTypeId.SCV, UnitTypeId.MEDIVAC))).not_structure
 
     def get_all_friendly_unit(self):
-        return self.bot_inst.units.filter(lambda u: (u.is_mine is True)).not_structure
+        return self.ai.units.filter(lambda u: (u.is_mine is True)).not_structure
 
     def get_all_friendly_building(self):
-        return self.bot_inst.units.filter(lambda u: (u.is_mine is True)).structure
+        return self.ai.structures.filter(lambda u: (u.is_mine is True))
 
     def get_all_enemy_building(self):
-        return self.bot_inst.units.structure.enemy
+        return self.ai.structures.enemy
 
     def get_current_battlefield_unit_status(self):
         all_friendly_units = self.get_all_friendly_unit()
